@@ -7,3 +7,7 @@ com.unity.memoryprofiler@0.1.0-preview.6 (2019-04-03) -> com.unity.memoryprofile
 
 This package is currently licensed under UCL and within the following version ranges:
 com.unity.memoryprofiler@0.2.5-preview.1 (2020-07-01) -> com.unity.memoryprofiler@0.4.3-preview.1 (2021-12-02)
+
+# TreeMapDump
+
+TreeMapDump 详细数据方便进行数量上差异比较(@yhnu)
