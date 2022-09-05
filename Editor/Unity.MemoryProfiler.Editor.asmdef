@@ -1,0 +1,25 @@
+{
+    "name": "Unity.MemoryProfiler.Editor",
+    "rootNamespace": "",
+    "references": [
+        "Unity.EditorCoroutines.Editor",
+        "Unity.MemoryProfiler"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "Unity",
+            "expression": "2022.2.0a13",
+            "define": "MEMORY_PROFILER_API_PUBLIC"
+        }
+    ],
+    "noEngineReferences": false
+}
