@@ -326,18 +326,18 @@ namespace Unity.MemoryProfiler.Editor.UI
                 }
             }
             
-            Debug.Log(m_TreeMap.Groups().Count);
-            var now = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds();;
-            var filename = $"{now}.overview.csv";
-            var toFile = EditorUtility.SaveFilePanel("Save", "", filename, "");
-            var f = new StreamWriter(toFile);
-            foreach (var e in m_TreeMap.Groups())
-            {
-                var gname = e.Key;
-                var g = e.Value;
-                f.WriteLine($"{g.Name};{g.Items.Count};{g.TotalValue}");
-            }
-            f.Close();
+            //Debug.Log(m_TreeMap.Groups().Count);
+            //var now = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds();;
+            //var filename = $"{now}.overview.csv";
+            //var toFile = EditorUtility.SaveFilePanel("Save", "", filename, "");
+            //var f = new StreamWriter(toFile);
+            //foreach (var e in m_TreeMap.Groups())
+            //{
+            //    var gname = e.Key;
+            //    var g = e.Value;
+            //    f.WriteLine($"{g.Name};{g.Items.Count};{g.TotalValue}");
+            //}
+            //f.Close();
         }
 
 #if !REMOVE_VIEW_HISTORY
@@ -380,19 +380,207 @@ namespace Unity.MemoryProfiler.Editor.UI
             //m_EventListener.OnOpenTable;
         }
 
+        [MenuItem("MemoryProfiler2/Dump Treemap Overview")]
+        public static void DumpTreeOverview()
+        {
+            var uiState = MemoryProfilerWindow.GetWindow<MemoryProfilerWindow>().UIState;
+            if (uiState == null || uiState.snapshotMode.CachedTreeMapPane == null || uiState.snapshotMode.CachedTreeMapPane.m_TreeMap == null)
+            {
+                Debug.Log("请打开内存快照 TreeMap 窗口.");
+                return;
+            }
+
+            TreeMapView treemap = uiState.snapshotMode.CachedTreeMapPane.m_TreeMap;
+
+            Debug.Log(treemap.Groups().Count);
+            var now = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds(); ;
+            var filename = $"{now}.overview.csv";
+            var toFile = EditorUtility.SaveFilePanel("Save", "", filename, "");
+            var f = new StreamWriter(toFile);
+            foreach (var e in treemap.Groups())
+            {
+                var gname = e.Key;
+                var g = e.Value;
+                f.WriteLine($"{g.Name};{g.Items.Count};{g.TotalValue}");
+            }
+            f.Close();
+            Debug.Log($"Dump Treemap Overview: {toFile}");
+        }
+
+        [MenuItem("MemoryProfiler2/Dump Treemap Group")]
+        public static void DumpTreemapGrop()
+        {
+            var uiState = MemoryProfilerWindow.GetWindow<MemoryProfilerWindow>().UIState;
+            if (uiState == null || uiState.snapshotMode.CachedTreeMapPane == null || uiState.snapshotMode.CachedTreeMapPane.m_TreeMap.SelectedGroup == null)
+            {
+                Debug.Log("请打开内存快照 TreeMap 窗口，并选择 Treemap.Group.");
+                return;
+            }
+            Treemap.Group selectedGroup = uiState.snapshotMode.CachedTreeMapPane.m_TreeMap.SelectedGroup;
+            var cnt = selectedGroup.Items.Count;
+
+            var now = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds(); ;
+            var filename = $"{selectedGroup.Name}_{now}_{cnt}.csv";
+            var toFile = EditorUtility.SaveFilePanel("Save", "", filename, "");
+            if (toFile == "") return;
+
+            uiState.snapshotMode.CachedTreeMapPane.DumpTreeGroup(selectedGroup, toFile);
+            Debug.Log($"Dump Treemap Group: {toFile}");
+        }
+
+        public void DumpTreeGroup(Treemap.Group group, string filename)
+        {
+            switch (group.Name)
+            {
+                case "UILabel":
+                    DumpUILabel(group, filename);
+                    break;
+                default:
+                    var cnt = group.Items.Count;
+                    var f = new StreamWriter(filename);
+
+                    for (int i = 0; i < cnt; i++)
+                    {
+                        var item = group.Items[i].Label.Replace("\r\n", " ").Replace("\n", " ").Trim();
+                        f.WriteLine(item);
+                    }
+                    f.Close();
+                    break;
+            }
+        }
+
+        DetailFormatter m_Formatter;
+        CachedSnapshot m_CachedSnapshot;
+
+        /// <summary>
+        /// 获取 managed object 字段列表
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        public int[] GetFieldList(ObjectData obj)
+        {
+            int[] fl;
+            List<int> fields = new List<int>();
+            switch (obj.dataType)
+            {
+                case ObjectDataType.Type:
+                    fl = m_CachedSnapshot.TypeDescriptions.fieldIndicesStatic[obj.managedTypeIndex];
+                    return fl;
+                case ObjectDataType.BoxedValue:
+                case ObjectDataType.Object:
+                case ObjectDataType.Value:
+                case ObjectDataType.ReferenceObject:
+                    fields.AddRange(m_CachedSnapshot.TypeDescriptions.fieldIndicesStatic[obj.managedTypeIndex]);
+                    fields.AddRange(m_CachedSnapshot.TypeDescriptions.FieldIndicesInstance[obj.managedTypeIndex]);
+                    break;
+            }
+            fl = fields.ToArray();
+            return fl;
+        }
+
+        /// <summary>
+        /// 获取字段的 value
+        /// </summary>
+        /// <param name="od"></param>
+        /// <returns></returns>
+        public string GetFieldValue(ObjectData od)
+        {
+            if (!od.IsValid)
+                return "failed";
+            switch (od.dataType)
+            {
+                case ObjectDataType.BoxedValue:
+                    return m_Formatter.FormatValueType(od.GetBoxedValue(m_CachedSnapshot, true), false);
+                case ObjectDataType.Value:
+                    return m_Formatter.FormatValueType(od, false);
+                case ObjectDataType.Object:
+                    return m_Formatter.FormatObject(od, false);
+                case ObjectDataType.Array:
+                    return m_Formatter.FormatArray(od);
+                case ObjectDataType.ReferenceObject:
+                    {
+                        ulong ptr = od.GetReferencePointer();
+                        if (ptr == 0)
+                        {
+                            return "null";
+                        }
+                        else
+                        {
+                            var o = ObjectData.FromManagedPointer(m_CachedSnapshot, ptr);
+                            if (!o.IsValid)
+                                return "failed to read object";
+                            return m_Formatter.FormatObject(o, false);
+                        }
+                    }
+                case ObjectDataType.ReferenceArray:
+                    {
+                        ulong ptr = od.GetReferencePointer();
+                        if (ptr == 0)
+                        {
+                            return "null";
+                        }
+                        var arr = ObjectData.FromManagedPointer(m_CachedSnapshot, ptr);
+                        if (!arr.IsValid)
+                            return "failed to read pointer";
+                        return m_Formatter.FormatArray(arr);
+                    }
+                case ObjectDataType.Type:
+                    return m_CachedSnapshot.TypeDescriptions.TypeDescriptionName[od.managedTypeIndex];
+                case ObjectDataType.NativeObject:
+                    return m_Formatter.FormatPointer(m_CachedSnapshot.NativeObjects.NativeObjectAddress[od.nativeObjectIndex]);
+                default:
+                    return "<uninitialized type>";
+            }
+        }
+
+        public void DumpUILabel(Treemap.Group group, string filename)
+        {
+            m_CachedSnapshot = m_UIState.snapshotMode.snapshot;
+            m_Formatter = new DetailFormatter(m_CachedSnapshot);
+
+            var tmpObj = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, group.Items[0].Metric.ObjectIndex);
+            var fieldList = GetFieldList(tmpObj);
+
+            int fieldIndex = -1;
+            for (int i = 0; i < fieldList.Length; i++)
+            {
+                var name = m_CachedSnapshot.FieldDescriptions.FieldDescriptionName[fieldList[i]];
+                if (name == "mText")
+                {
+                    fieldIndex = fieldList[i];
+                    break;
+                }
+            }
+
+            var value = "";
+            int cnt = group.Items.Count;
+            var f = new StreamWriter(filename);
+            for (int i = 0; i < cnt; i++)
+            {
+                var item = group.Items[i];
+                var od = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, item.Metric.ObjectIndex);
+                var fieldByIndex = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, fieldIndex, false);
+                value = GetFieldValue(fieldByIndex);
+
+                var itemStr = item.Label + " " + value;
+                itemStr = itemStr.Replace("\r\n", " ").Replace("\n", " ").Trim();
+                f.WriteLine(itemStr);
+            }
+            f.Close();
+        }
+
         public void OnClickGroup(Treemap.Group a, bool record)
         {
             //Debug.LogFormat("{0}", this.m_Spreadsheet.SourceTable);
-            var cnt = a.Items.Count;
-            var now = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds();;
-            var f = new StreamWriter(@"I:\I2022_08\jxsj32\" + a.Name + "_" + now + "_" + cnt + ".csv");
-            for (int i = 0; i < a.Items.Count; i++)
-            {
-                var item = a.Items[i].Label.Replace("\r\n", " ").Trim();
-                f.WriteLine(item);
-                //Debug.LogFormat("{0}", a.Items[i].Label);    
-            }
-            f.Close();
+            //var cnt = a.Items.Count;
+            //var now = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds();
+            //var f = new StreamWriter(System.Environment.CurrentDirectory + Path.DirectorySeparatorChar + a.Name + "_" + now + "_" + cnt + ".csv");
+            //for (int i = 0; i < a.Items.Count; i++)
+            //{
+            //    var item = a.Items[i].Label.Replace("\r\n", " ").Trim();
+            //    f.WriteLine(item);
+            //}
+            //f.Close();
             
             //if (record)
             //    m_UIState.AddHistoryEvent(GetCurrentHistoryEvent());
