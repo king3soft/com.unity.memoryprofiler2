@@ -585,8 +585,8 @@ namespace Unity.MemoryProfiler.Editor.UI
             var mAtlasIndex = GetFieldIndex(tmpObj, "mAtlas");
             var mSpriteNameIndex = GetFieldIndex(tmpObj, "mSpriteName");
 
-            var mAtlasOd = tmpObj.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mAtlasIndex, false);
-            var matPathIndex = GetFieldIndex(mAtlasOd, "matPath");
+            var tmpMAtlasOd = tmpObj.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mAtlasIndex, false);
+            var matPathIndex = GetFieldIndex(tmpMAtlasOd, "matPath");
 
 
             var value = "";
@@ -596,9 +596,17 @@ namespace Unity.MemoryProfiler.Editor.UI
             {
                 var item = group.Items[i];
                 var od = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, item.Metric.ObjectIndex);
+
                 var mSpriteNameOd = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mSpriteNameIndex, false);
-                var matPathOd = mAtlasOd.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, matPathIndex, false);
-                value = GetFieldValue(mSpriteNameOd) + " " + GetFieldValue(matPathOd);
+                value = GetFieldValue(mSpriteNameOd);
+
+                // 如果 mAtlas 不为空，则获取 mAtlas.matPath 字段的值
+                var mAtlasOd = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mAtlasIndex, false);
+                if (GetFieldValue(mAtlasOd) != "null")
+                {
+                    var matPathOd = mAtlasOd.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, matPathIndex, false);
+                    value += " " + GetFieldValue(matPathOd);
+                }
 
                 var itemStr = item.Label + " " + value;
                 itemStr = itemStr.Replace("\r\n", " ").Replace("\n", " ").Trim();
