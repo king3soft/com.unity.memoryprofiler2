@@ -435,6 +435,9 @@ namespace Unity.MemoryProfiler.Editor.UI
                 case "UILabel":
                     DumpUILabel(group, filename);
                     break;
+                case "UISprite":
+                    DumpUISprite(group, filename);
+                    break;
                 default:
                     var cnt = group.Items.Count;
                     var f = new StreamWriter(filename);
@@ -476,6 +479,19 @@ namespace Unity.MemoryProfiler.Editor.UI
             }
             fl = fields.ToArray();
             return fl;
+        }
+
+        public int GetFieldIndex(ObjectData od, string fieldName)
+        {
+            var fieldList = GetFieldList(od);
+            for (int i = 0; i < fieldList.Length; i++)
+            {
+                if (fieldName == m_CachedSnapshot.FieldDescriptions.FieldDescriptionName[fieldList[i]])
+                {
+                    return fieldList[i];
+                }
+            }
+            return -1;
         }
 
         /// <summary>
@@ -539,18 +555,8 @@ namespace Unity.MemoryProfiler.Editor.UI
             m_Formatter = new DetailFormatter(m_CachedSnapshot);
 
             var tmpObj = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, group.Items[0].Metric.ObjectIndex);
-            var fieldList = GetFieldList(tmpObj);
 
-            int fieldIndex = -1;
-            for (int i = 0; i < fieldList.Length; i++)
-            {
-                var name = m_CachedSnapshot.FieldDescriptions.FieldDescriptionName[fieldList[i]];
-                if (name == "mText")
-                {
-                    fieldIndex = fieldList[i];
-                    break;
-                }
-            }
+            var mTextIndex = GetFieldIndex(tmpObj, "mText");
 
             var value = "";
             int cnt = group.Items.Count;
@@ -559,8 +565,40 @@ namespace Unity.MemoryProfiler.Editor.UI
             {
                 var item = group.Items[i];
                 var od = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, item.Metric.ObjectIndex);
-                var fieldByIndex = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, fieldIndex, false);
-                value = GetFieldValue(fieldByIndex);
+                var mTextOd = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mTextIndex, false);
+                value = GetFieldValue(mTextOd);
+
+                var itemStr = item.Label + " " + value;
+                itemStr = itemStr.Replace("\r\n", " ").Replace("\n", " ").Trim();
+                f.WriteLine(itemStr);
+            }
+            f.Close();
+        }
+
+        public void DumpUISprite(Treemap.Group group, string filename)
+        {
+            m_CachedSnapshot = m_UIState.snapshotMode.snapshot;
+            m_Formatter = new DetailFormatter(m_CachedSnapshot);
+
+            var tmpObj = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, group.Items[0].Metric.ObjectIndex);
+
+            var mAtlasIndex = GetFieldIndex(tmpObj, "mAtlas");
+            var mSpriteNameIndex = GetFieldIndex(tmpObj, "mSpriteName");
+
+            var mAtlasOd = tmpObj.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mAtlasIndex, false);
+            var matPathIndex = GetFieldIndex(mAtlasOd, "matPath");
+
+
+            var value = "";
+            int cnt = group.Items.Count;
+            var f = new StreamWriter(filename);
+            for (int i = 0; i < cnt; i++)
+            {
+                var item = group.Items[i];
+                var od = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, item.Metric.ObjectIndex);
+                var mSpriteNameOd = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mSpriteNameIndex, false);
+                var matPathOd = mAtlasOd.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, matPathIndex, false);
+                value = GetFieldValue(mSpriteNameOd) + " " + GetFieldValue(matPathOd);
 
                 var itemStr = item.Label + " " + value;
                 itemStr = itemStr.Replace("\r\n", " ").Replace("\n", " ").Trim();
