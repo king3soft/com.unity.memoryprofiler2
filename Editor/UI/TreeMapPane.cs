@@ -432,6 +432,9 @@ namespace Unity.MemoryProfiler.Editor.UI
         {
             switch (group.Name)
             {
+                case "Game.UI.UIPanel":
+                    DumpUIPanel(group, filename);
+                    break;
                 case "UILabel":
                     DumpUILabel(group, filename);
                     break;
@@ -442,6 +445,7 @@ namespace Unity.MemoryProfiler.Editor.UI
                     var cnt = group.Items.Count;
                     var f = new StreamWriter(filename);
 
+                    f.WriteLine(group.Name);
                     for (int i = 0; i < cnt; i++)
                     {
                         var item = group.Items[i].Label.Replace("\r\n", " ").Replace("\n", " ").Trim();
@@ -451,6 +455,34 @@ namespace Unity.MemoryProfiler.Editor.UI
                     break;
             }
         }
+        
+        public void DumpUIPanel(Treemap.Group group, string filename)
+        {
+            m_CachedSnapshot = m_UIState.snapshotMode.snapshot;
+            m_Formatter = new DetailFormatter(m_CachedSnapshot);
+
+            var tmpObj = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, group.Items[0].Metric.ObjectIndex);
+
+            var mTextIndex = GetFieldIndex(tmpObj, "<UIPath>k__BackingField");
+
+            var value = "";
+            int cnt = group.Items.Count;
+            var f = new StreamWriter(filename);
+            for (int i = 0; i < cnt; i++)
+            {
+                var item = group.Items[i];
+                var od = ObjectData.FromManagedObjectIndex(m_CachedSnapshot, item.Metric.ObjectIndex);
+                var mTextOd = od.GetInstanceFieldBySnapshotFieldIndex(m_CachedSnapshot, mTextIndex, false);
+                value = GetFieldValue(mTextOd);
+
+                // var itemStr = item.Label + " " + value;
+                var itemStr = value;
+                itemStr = itemStr.Replace("\r\n", " ").Replace("\n", " ").Trim();
+                f.WriteLine(itemStr);
+            }
+            f.Close();
+        }
+        
 
         DetailFormatter m_Formatter;
         CachedSnapshot m_CachedSnapshot;

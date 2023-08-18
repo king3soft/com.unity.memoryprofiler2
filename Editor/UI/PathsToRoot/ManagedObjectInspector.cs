@@ -211,6 +211,10 @@ namespace Unity.MemoryProfiler.Editor.UI
             {
                 var fieldByIndex = obj.GetInstanceFieldBySnapshotFieldIndex(cs, fieldList[i], false);
                 var name = cs.FieldDescriptions.FieldDescriptionName[fieldList[i]];
+                if (name.Contains("matPath"))
+                {
+                    Debug.Log("matPath");
+                }
                 var v = GetValue(fieldByIndex);
                 var typeIdx = cs.FieldDescriptions.TypeIndex[fieldList[i]];
                 var typename = cs.TypeDescriptions.TypeDescriptionName[typeIdx];
